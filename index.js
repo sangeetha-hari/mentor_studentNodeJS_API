@@ -7,10 +7,10 @@ import { MongoClient } from "mongodb";
 import * as dotenv from 'dotenv';
 
 dotenv.config();
-console.log(process.env);
+// console.log(process.env);
 const PORT = 9000;
 const app = express();
-const MONGO_URL="mongodb://127.0.0.1";
+const MONGO_URL=process.env.MONGO_URL;
 
 
 
@@ -37,13 +37,9 @@ app.get("/", async (req, res) => {
 app.get("/student/:stu_id", async (req, res) => {
   const { stu_id } = req.params;
   console.log(req.params);
-  const student = await client
-    .db("mentor_student")
-    .collection("student")
-    .findOne({ studentID: stu_id });
-  student // If the array is empty
-    ? res.send(student)
-    : res.status(404).send({ message: "NO Student FOUND with this ID" });
+  const student = await getstudentbyID(stu_id);
+  // If the array is empty
+  student ? res.send(student) : res.status(404).send({ message: "NO Student FOUND with this ID" });
 });
 
 //search student with query parameters
@@ -91,13 +87,44 @@ app.post("/student", express.json(), async (req, res) => {
     res.send(result);
 });
 // Write API to Assign a student to Mentor
-app.put("/student", express.json(),(req,res)=>{
+app.put("/mentor/:name", express.json(),async(req,res)=>{
+  const {name}=req.params;
+  console.log(name);
+  //Find mentor by name
+  const olddata=await getMentorbyName(name)
+  console.log(olddata);
+  console.log(olddata.student_details);
+  const newStudent={
+    "stuassigned":"",
+    "studentName":"xyz",
+    "studentBatch": "B21"
+  }
+  olddata.student_details.push(newStudent);
+  console.log(olddata);
+  const result= await client.db("mentor_student").collection("mentor").updateOne({mentorName:name},{$set:olddata});
 
+  res.send(name);
 
 })
 
 
 // Write API to Assign or Change Mentor for particular Student
+app.put("/student/:id", express.json(),async (req,res)=>{
+  const {id}=req.params;
+  console.log(id);
+  const updateMentor= req.body;
+  console.log(updateMentor.mentor);
+  const olddata= await getstudentbyID(id);
+  if(olddata){
+    const updatedStudent={"studentID": olddata.studentID,
+    "studentName": olddata.studentName,
+    "batchno": olddata.batchno,
+    "mentor":updateMentor.mentor }
+    const result= await client.db("mentor_student").collection("student").updateOne({studentID:id},{$set:updatedStudent});
+    res.send(result);
+  }
+  else{ res.status(404).send({"message": "Student ID not found"}); }  
+})
 
 //Start the server
 app.listen(PORT, () => console.log("server started on port:", PORT));
@@ -115,3 +142,20 @@ async function studentisUnique(newStudent) {
   }
   return false;
 }
+
+// Function to getStudent by ID
+async function getstudentbyID(id){
+console.log("this is in getstudentby ID function");
+const student = await client.db("mentor_student").collection("student").findOne({ studentID: id }); 
+return(student);
+
+}
+
+// Function to getMentor by name
+async function getMentorbyName(name){
+  console.log("this is in getmentorby name function");
+  const student = await client.db("mentor_student").collection("mentor").findOne({ mentorName: name }); 
+  return(student);
+  
+  }
+  
